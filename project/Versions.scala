@@ -1,13 +1,21 @@
 object Versions {
 
-  val scala = "2.13.5"
+  object scala {
+    val Scala212 = "2.12.13"
+    val Scala213 = "2.13.5"
 
-  val http4s = "0.21.20"
-  val circe = "0.13.0"
+    val Default = Scala212
+    val Cross = Seq(Scala212, Scala213)
 
-  val googleOauth = "0.25.0"
+    val CollectionCompat = "2.4.2"
+  }
 
-  val scalaTest = "3.2.6"
+  val Http4s = "0.21.20"
+  val Circe = "0.13.0"
+
+  val GoogleOauth = "0.25.0"
+
+  val ScalaTest = "3.2.6"
 
   def V = this
 }

@@ -46,13 +46,15 @@ class FirebaseWebClient[F[_]: Sync](
       req <- POST(jsonBody, apiHost / "v1beta1" / "sites" / siteName.value / "versions", token)
       res <- client.run(req).use(_.asJsonDecode[SiteVersion])
     } yield res
+  }.adaptError { case t =>
+    new Exception(show"Failed to create new site version for site $siteName", t)
   }
 
   def populateFiles(
       siteName: SiteName,
       siteVersion: SiteVersion,
       files: PopulateFilesRequest
-  ): F[List[PopulateFilesResponse]] =
+  ): F[Set[String]] =
     files.files
       .grouped(1000)
       .map(PopulateFilesRequest(_))
@@ -69,6 +71,7 @@ class FirebaseWebClient[F[_]: Sync](
         } yield res
       })
       .sequence
+      .map(_.flatMap(_.uploadRequiredHashes).flatten.toSet)
 
   def upload(
       siteName: SiteName,

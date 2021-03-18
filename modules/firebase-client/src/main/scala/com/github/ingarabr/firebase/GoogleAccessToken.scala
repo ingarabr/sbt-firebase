@@ -3,12 +3,13 @@ package com.github.ingarabr.firebase
 import cats.effect.concurrent.Ref
 import cats.implicits._
 import cats.effect.{Clock, Resource, Sync}
+import com.github.ingarabr.firebase.GoogleAccessToken.AuthType._
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import org.http4s.{AuthScheme, Credentials}
 import org.http4s.headers.Authorization
 
-import java.io.FileInputStream
-import java.nio.file.Path
+import java.io.{File, FileInputStream}
+import java.nio.file.{Path, Paths}
 import java.util.concurrent.TimeUnit
 import scala.jdk.CollectionConverters._
 
@@ -59,6 +60,15 @@ object GoogleAccessToken {
   }
 
   sealed trait AuthType
-  case object ApplicationDefault extends AuthType
-  case class ServiceAccountKey(path: Path) extends AuthType
+  object AuthType {
+    case object ApplicationDefault extends AuthType
+    case class ServiceAccountKey(path: Path) extends AuthType
+
+    object ServiceAccountKey {
+      def apply(serviceAccountPath: String) = new ServiceAccountKey(Paths.get(serviceAccountPath))
+      def apply(serviceAccountFile: File) = new ServiceAccountKey(serviceAccountFile.toPath)
+    }
+
+  }
+
 }

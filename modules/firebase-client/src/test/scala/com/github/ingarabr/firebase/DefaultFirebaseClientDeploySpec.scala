@@ -1,7 +1,7 @@
 package com.github.ingarabr.firebase
 
 import cats.effect.{Blocker, Clock, ContextShift, IO, Timer}
-import com.github.ingarabr.firebase.GoogleAccessToken.ServiceAccountKey
+import com.github.ingarabr.firebase.GoogleAccessToken.AuthType.ServiceAccountKey
 import com.github.ingarabr.firebase.dto.SiteName
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -37,7 +37,7 @@ class DefaultFirebaseClientDeploySpec extends AnyFlatSpec with Matchers {
 
   private def withKeyPath[A](body: (ServiceAccountKey, SiteName) => A) = {
     body(
-      loadKey("FIREBASE_TEST_SERVICE_ACCOUNT", p => ServiceAccountKey(Paths.get(p))),
+      loadKey("FIREBASE_TEST_SERVICE_ACCOUNT", path => ServiceAccountKey(path)),
       loadKey("FIREBASE_TEST_PROJECT", SiteName.apply)
     )
   }

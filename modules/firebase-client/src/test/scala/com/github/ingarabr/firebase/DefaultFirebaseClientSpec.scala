@@ -7,7 +7,7 @@ import fs2.Stream
 
 class DefaultFirebaseClientSpec extends AnyFlatSpec with Matchers {
 
-  it should "digest" in {
+  it should "calculate digest" in {
     //Equal to `echo 1234567890 | openssl dgst -sha256`
     val value = Stream.iterable("1234567890\n".getBytes())
     val digest = DefaultFirebaseClient.digestHexStr[IO](value).unsafeRunSync()
