@@ -71,7 +71,7 @@ class FirebaseWebClient[F[_]: Sync](
         } yield res
       })
       .sequence
-      .map(_.flatMap(_.uploadRequiredHashes).flatten.toSet)
+      .map(_.flatMap(r => r.uploadRequiredHashes).flatten.toSet)
 
   def upload(
       siteName: SiteName,

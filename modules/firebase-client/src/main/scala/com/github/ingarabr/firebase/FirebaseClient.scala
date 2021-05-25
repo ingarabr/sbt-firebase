@@ -10,6 +10,7 @@ import org.http4s.client.Client
 import com.github.ingarabr.firebase.dto._
 
 import java.nio.file.{Path, Paths}
+import java.time.Instant
 
 trait FirebaseClient[F[_]] {
   def upload(siteName: SiteName, path: Path): F[UploadSummary]
@@ -37,19 +38,20 @@ class DefaultFirebaseClient[F[_]: Concurrent: ContextShift](
     webClient: FirebaseWebClient[F]
 ) extends FirebaseClient[F] {
   override def upload(siteName: SiteName, path: Path): F[UploadSummary] = {
-    val tempDir = tempDirectoryResource(
+    val tempDirResource = tempDirectoryResource(
       blocker,
       Paths.get(sys.props("java.io.tmpdir")),
       "fb-upload"
     )
 
-    def gzipToTempFolderAndCalculateDigests(dir: Path): F[List[(Path, Path, String)]] =
+    def gzipToTempFolderAndCalculateDigests(tempDir: Path): F[List[(Path, Path, String)]] =
       fs2.io.file
         .walk(blocker, path)
         .drop(1)
         .map(source => {
           val relative = path.relativize(source)
-          val target = dir.resolve(relative.resolveSibling(relative.getFileName.toString ++ ".gz"))
+          val target =
+            tempDir.resolve(relative.resolveSibling(relative.getFileName.toString ++ ".gz"))
           (source, relative, target)
         })
         .flatMap { case (source, relative, target) =>
@@ -60,9 +62,9 @@ class DefaultFirebaseClient[F[_]: Concurrent: ContextShift](
         .compile
         .toList
 
-    tempDir.use(dir =>
+    tempDirResource.use(tempDir =>
       for {
-        zipWithDigest <- gzipToTempFolderAndCalculateDigests(dir)
+        zipWithDigest <- gzipToTempFolderAndCalculateDigests(tempDir)
         populateFilesRequest = PopulateFilesRequest(zipWithDigest)
 
         siteVersion <- webClient.versionsCreate(siteName)
@@ -78,7 +80,9 @@ class DefaultFirebaseClient[F[_]: Concurrent: ContextShift](
                 hashValue,
                 readAll(target, blocker, 1024)
               )
-              .adaptError { case t => new Exception(s"Failed to upload file $source", t) }
+              .adaptError { case t =>
+                new Exception(s"Failed to upload file $source with sha $hashValue from $target", t)
+              }
           }
         _ <- webClient.uploadingDone(siteName, siteVersion)
         _ <- webClient.release(siteName, siteVersion)
@@ -90,15 +94,25 @@ class DefaultFirebaseClient[F[_]: Concurrent: ContextShift](
 }
 
 object DefaultFirebaseClient {
+
   def digestHexStr[F[_]: Sync](s: fs2.Stream[F, Byte]): F[String] =
-    s.through(fs2.hash.sha256).map("%02x".format(_)).compile.foldMonoid
+    s.through(fs2.hash.sha256)
+      .map(b => String.format("%02x", Byte.box(b)))
+      .compile
+      .foldMonoid
 
   def zipAndDigest[F[_]: ContextShift: Concurrent](
       blocker: Blocker,
       source: Path,
       target: Path
   ): fs2.Stream[F, String] = {
-    val gzipped = readAll(source, blocker, 1024).through(fs2.compression.gzip())
+    val gzipped = readAll(source, blocker, 1024)
+      .through(
+        fs2.compression.gzip(
+          fileName = Some(source.getFileName.toString),
+          modificationTime = Some(Instant.ofEpochMilli(source.toFile.lastModified()))
+        )
+      )
     gzipped
       .concurrently(gzipped.through(writeAll[F](target, blocker)))
       .through(s => Stream.eval(digestHexStr(s)))

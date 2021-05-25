@@ -39,7 +39,7 @@ object FirebasePlugin extends AutoPlugin {
               |""".stripMargin
         )
 
-        firebaseClientRessource(auth)
+        firebaseClientResource(auth)
           .use(c => c.upload(dto.SiteName(name), dir.toPath))
           .flatTap(summary =>
             IO(
@@ -57,7 +57,7 @@ object FirebasePlugin extends AutoPlugin {
       }
     )
 
-  private def firebaseClientRessource(auth: AuthType) = {
+  private def firebaseClientResource(auth: AuthType) = {
     implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
     implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
     for {

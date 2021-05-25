@@ -17,7 +17,6 @@ object GoogleAccessToken {
 
   def getAccessToken[F[_]: Sync](authType: AuthType): F[AccessToken] =
     Sync[F].delay {
-      println("creating new token!")
       val scopes = List(
         // View and manage your data across Google Cloud Platform services
         "https://www.googleapis.com/auth/cloud-platform",
