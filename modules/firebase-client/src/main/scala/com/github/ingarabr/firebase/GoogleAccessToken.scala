@@ -1,9 +1,11 @@
 package com.github.ingarabr.firebase
 
+import cats.Show
 import cats.effect.Ref
 import cats.effect.{Clock, Resource, Sync}
-import cats.syntax.flatMap._
 import cats.syntax.applicative._
+import cats.syntax.flatMap._
+import cats.syntax.show._
 import com.github.ingarabr.firebase.GoogleAccessToken.AuthType._
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 
@@ -54,6 +56,11 @@ object GoogleAccessToken {
     object ServiceAccountKey {
       def apply(serviceAccountPath: String) = new ServiceAccountKey(Paths.get(serviceAccountPath))
       def apply(serviceAccountFile: File) = new ServiceAccountKey(serviceAccountFile.toPath)
+    }
+
+    implicit val show: Show[AuthType] = {
+      case ApplicationDefault      => "ApplicationDefault"
+      case ServiceAccountKey(path) => show"ServiceAccountKey(${path.toString})"
     }
 
   }

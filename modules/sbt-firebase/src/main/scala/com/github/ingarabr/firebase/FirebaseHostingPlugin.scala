@@ -1,6 +1,7 @@
 package com.github.ingarabr.firebase
 
 import cats.effect.IO
+import cats.syntax.show._
 import cats.effect.unsafe.implicits.global
 import cats.syntax.flatMap._
 import com.github.ingarabr.firebase.GoogleAccessToken.AuthType
@@ -10,7 +11,7 @@ import sbt.{Def, _}
 
 import scala.concurrent.ExecutionContext
 
-object FirebasePlugin extends AutoPlugin {
+object FirebaseHostingPlugin extends AutoPlugin {
 
   object autoImport {
     val firebaseSiteName = taskKey[String]("The some of the firebase project/site.")
@@ -18,7 +19,7 @@ object FirebasePlugin extends AutoPlugin {
     val firebaseAuth =
       taskKey[AuthType]("How to authenticate with firebase. Using google library defaults")
 
-    val firebaseDeploy = taskKey[Unit]("Deploy hosting files to firebase")
+    val firebaseDeployHosting = taskKey[Unit]("Deploy hosting files to firebase")
   }
 
   import autoImport._
@@ -26,18 +27,18 @@ object FirebasePlugin extends AutoPlugin {
   override def projectSettings: Seq[Def.Setting[_]] =
     Seq(
       firebaseAuth := AuthType.ApplicationDefault,
-      firebaseDeploy := {
+      firebaseDeployHosting := {
         val dir = firebaseHostingFolder.value
         val name = firebaseSiteName.value
         val auth = firebaseAuth.value
         val log = streams.value.log
 
         log.info(
-          s"""|Firebase deploy
-              | - site name:   $name
-              | - auth method: $auth
-              | - from path:   $dir
-              |""".stripMargin
+          show"""|Firebase deploy:
+                 | - site name:   $name
+                 | - auth method: $auth
+                 | - from path:   ${dir.getPath}
+                 |""".stripMargin
         )
 
         firebaseClientResource(auth)
@@ -45,10 +46,10 @@ object FirebasePlugin extends AutoPlugin {
           .flatTap(summary =>
             IO(
               log.info(
-                s"""|Firebase deploy summary:
-                    | - files requested to be uploaded: ${summary.filesInUploadRequest}
-                    | - files needed to be uploaded:    ${summary.filesRequiredToUpload}
-                    | """.stripMargin
+                show"""|Firebase deploy summary:
+                       | - files requested to be uploaded: ${summary.filesInUploadRequest}
+                       | - files needed to be uploaded:    ${summary.filesRequiredToUpload}
+                       | """.stripMargin
               )
             )
           )
