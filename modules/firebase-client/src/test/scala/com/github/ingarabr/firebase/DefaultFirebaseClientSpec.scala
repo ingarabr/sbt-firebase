@@ -1,12 +1,12 @@
 package com.github.ingarabr.firebase
 
-import cats.effect.{Blocker, IO}
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
+import fs2.Stream
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import fs2.Stream
 
 import java.nio.file.{Files, Paths}
-import scala.concurrent.ExecutionContext
 
 class DefaultFirebaseClientSpec extends AnyFlatSpec with Matchers {
 
@@ -24,14 +24,11 @@ class DefaultFirebaseClientSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "calculate digest from from file" in {
-
-    implicit val cs = IO.contextShift(ExecutionContext.global)
     val js = getClass.getResource("/simple-page/app.js").getPath
 
     val tempDir = Files.createTempDirectory("test")
     val digest = DefaultFirebaseClient
       .zipAndDigest[IO](
-        Blocker.liftExecutionContext(ExecutionContext.global),
         Paths.get(js),
         tempDir.resolve("app.js.gz")
       )

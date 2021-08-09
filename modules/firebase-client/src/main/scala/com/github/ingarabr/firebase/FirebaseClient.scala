@@ -1,14 +1,14 @@
 package com.github.ingarabr.firebase
 
 import cats.implicits._
-import cats.effect.{Blocker, Clock, Concurrent, ContextShift, Resource, Sync, Timer}
+import cats.effect.{Async, Clock, Resource}
 import com.github.ingarabr.firebase.DefaultFirebaseClient.UploadSummary
 import com.github.ingarabr.firebase.GoogleAccessToken.AuthType
-import fs2.io.file.{readAll, tempDirectoryResource, writeAll}
-import fs2.Stream
-import org.http4s.client.Client
 import com.github.ingarabr.firebase.dto._
-
+import fs2.io.file.Files
+import fs2.Stream
+import fs2.compression.Compression
+import org.http4s.client.Client
 import java.nio.file.{Path, Paths}
 import java.time.Instant
 
@@ -17,15 +17,13 @@ trait FirebaseClient[F[_]] {
 }
 
 object FirebaseClient {
-  def resource[F[_]: Concurrent: ContextShift: Timer](
-      blocker: Blocker,
+  def resource[F[_]: Async: Clock](
       client: Client[F],
       authType: AuthType
   ): Resource[F, FirebaseClient[F]] = {
-    implicit val clock: Clock[F] = Timer[F].clock
     GoogleAccessToken
       .cached(authType)
-      .map(auth => new DefaultFirebaseClient[F](blocker, new FirebaseWebClient[F](client, auth)))
+      .map(auth => new DefaultFirebaseClient[F](new FirebaseWebClient[F](client, auth)))
 
   }
 }
@@ -33,20 +31,18 @@ object FirebaseClient {
 /** The steps are documented in
   * https://firebase.google.com/docs/hosting/api-deploy
   */
-class DefaultFirebaseClient[F[_]: Concurrent: ContextShift](
-    blocker: Blocker,
+class DefaultFirebaseClient[F[_]: Async: Files](
     webClient: FirebaseWebClient[F]
 ) extends FirebaseClient[F] {
   override def upload(siteName: SiteName, path: Path): F[UploadSummary] = {
-    val tempDirResource = tempDirectoryResource(
-      blocker,
-      Paths.get(sys.props("java.io.tmpdir")),
+    val tempDirResource = Files[F].tempDirectory(
+      Some(Paths.get(sys.props("java.io.tmpdir"))),
       "fb-upload"
     )
 
     def gzipToTempFolderAndCalculateDigests(tempDir: Path): F[List[(Path, Path, String)]] =
-      fs2.io.file
-        .walk(blocker, path)
+      Files[F]
+        .walk(path)
         .drop(1)
         .map(source => {
           val relative = path.relativize(source)
@@ -56,7 +52,7 @@ class DefaultFirebaseClient[F[_]: Concurrent: ContextShift](
         })
         .flatMap { case (source, relative, target) =>
           DefaultFirebaseClient
-            .zipAndDigest(blocker, source, target)
+            .zipAndDigest(source, target)
             .map(hashValue => (relative, target, hashValue))
         }
         .compile
@@ -78,7 +74,7 @@ class DefaultFirebaseClient[F[_]: Concurrent: ContextShift](
                 siteName,
                 siteVersion,
                 hashValue,
-                readAll(target, blocker, 1024)
+                Files[F].readAll(target, 1024)
               )
               .adaptError { case t =>
                 new Exception(s"Failed to upload file $source with sha $hashValue from $target", t)
@@ -95,26 +91,26 @@ class DefaultFirebaseClient[F[_]: Concurrent: ContextShift](
 
 object DefaultFirebaseClient {
 
-  def digestHexStr[F[_]: Sync](s: fs2.Stream[F, Byte]): F[String] =
+  def digestHexStr[F[_]: Async](s: fs2.Stream[F, Byte]): F[String] =
     s.through(fs2.hash.sha256)
       .map(b => String.format("%02x", Byte.box(b)))
       .compile
       .foldMonoid
 
-  def zipAndDigest[F[_]: ContextShift: Concurrent](
-      blocker: Blocker,
+  def zipAndDigest[F[_]: Async: Compression: Files](
       source: Path,
       target: Path
   ): fs2.Stream[F, String] = {
-    val gzipped = readAll(source, blocker, 1024)
+    val gzipped = Files[F]
+      .readAll(source, 1024)
       .through(
-        fs2.compression.gzip(
+        Compression[F].gzip(
           fileName = Some(source.getFileName.toString),
           modificationTime = Some(Instant.ofEpochMilli(source.toFile.lastModified()))
         )
       )
     gzipped
-      .concurrently(gzipped.through(writeAll[F](target, blocker)))
+      .concurrently(gzipped.through(Files[F].writeAll(target)))
       .through(s => Stream.eval(digestHexStr(s)))
 
   }

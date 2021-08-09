@@ -1,9 +1,10 @@
 package com.github.ingarabr.firebase
 
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import cats.syntax.flatMap._
-import cats.effect.{Blocker, ContextShift, IO, Timer}
 import com.github.ingarabr.firebase.GoogleAccessToken.AuthType
-import org.http4s.client.blaze.BlazeClientBuilder
+import org.http4s.blaze.client.BlazeClientBuilder
 import sbt.Keys.streams
 import sbt.{Def, _}
 
@@ -58,15 +59,9 @@ object FirebasePlugin extends AutoPlugin {
     )
 
   private def firebaseClientResource(auth: AuthType) = {
-    implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-    implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
     for {
       http4sClient <- BlazeClientBuilder[IO](ExecutionContext.global).resource
-      firebaseClient <- FirebaseClient.resource[IO](
-        Blocker.liftExecutionContext(ExecutionContext.global),
-        http4sClient,
-        auth
-      )
+      firebaseClient <- FirebaseClient.resource[IO](http4sClient, auth)
     } yield firebaseClient
   }
 }

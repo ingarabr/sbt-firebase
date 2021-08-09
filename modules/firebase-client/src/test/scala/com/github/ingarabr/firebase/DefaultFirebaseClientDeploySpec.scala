@@ -1,14 +1,15 @@
 package com.github.ingarabr.firebase
 
-import cats.effect.{Blocker, Clock, ContextShift, IO, Timer}
+import cats.effect.unsafe.implicits.global
+import cats.effect.IO
 import com.github.ingarabr.firebase.GoogleAccessToken.AuthType.ServiceAccountKey
 import com.github.ingarabr.firebase.dto.SiteName
 import org.http4s.client.Client
-import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatest.matchers.should.Matchers
-import org.http4s.client.blaze.BlazeClientBuilder
+import org.http4s.blaze.client.BlazeClientBuilder
 import org.http4s.client.middleware.RequestLogger
 import org.http4s.client.middleware.ResponseLogger
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
 import java.io.{File, FileInputStream}
 import java.nio.file.Paths
@@ -16,11 +17,6 @@ import java.util.Properties
 import scala.concurrent.ExecutionContext
 
 class DefaultFirebaseClientDeploySpec extends AnyFlatSpec with Matchers {
-
-  private val blocker = Blocker.liftExecutionContext(ExecutionContext.global)
-  implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-  implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
-  implicit val clock: Clock[IO] = timer.clock
 
   private def logger = (str: String) => IO(println(str))
 
@@ -41,7 +37,7 @@ class DefaultFirebaseClientDeploySpec extends AnyFlatSpec with Matchers {
     val resources =
       for {
         httpClient <- BlazeClientBuilder[IO](ExecutionContext.global).resource.map(clientLogger)
-        fbClient <- FirebaseClient.resource(blocker, httpClient, serviceAccount)
+        fbClient <- FirebaseClient.resource(httpClient, serviceAccount)
       } yield fbClient
 
     resources
