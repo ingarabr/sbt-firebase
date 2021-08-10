@@ -9,6 +9,7 @@ import fs2.io.file.Files
 import fs2.Stream
 import fs2.compression.Compression
 import org.http4s.client.Client
+
 import java.nio.file.{Path, Paths}
 import java.time.Instant
 
@@ -43,7 +44,7 @@ class DefaultFirebaseClient[F[_]: Async: Files](
     def gzipToTempFolderAndCalculateDigests(tempDir: Path): F[List[(Path, Path, String)]] =
       Files[F]
         .walk(path)
-        .drop(1)
+        .filter(p => p.toFile.isFile)
         .map(source => {
           val relative = path.relativize(source)
           val target =
@@ -54,6 +55,7 @@ class DefaultFirebaseClient[F[_]: Async: Files](
           DefaultFirebaseClient
             .zipAndDigest(source, target)
             .map(hashValue => (relative, target, hashValue))
+
         }
         .compile
         .toList
@@ -80,6 +82,7 @@ class DefaultFirebaseClient[F[_]: Async: Files](
                 new Exception(s"Failed to upload file $source with sha $hashValue from $target", t)
               }
           }
+
         _ <- webClient.uploadingDone(siteName, siteVersion)
         _ <- webClient.release(siteName, siteVersion)
 
@@ -109,9 +112,8 @@ object DefaultFirebaseClient {
           modificationTime = Some(Instant.ofEpochMilli(source.toFile.lastModified()))
         )
       )
-    gzipped
-      .concurrently(gzipped.through(Files[F].writeAll(target)))
-      .through(s => Stream.eval(digestHexStr(s)))
+
+    gzipped.through(s => Files[F].writeAll(target)(s) ++ Stream.eval(digestHexStr(s)))
 
   }
 

@@ -12,7 +12,7 @@ import fs2.Stream
 import io.circe.Json
 import io.circe.syntax._
 import io.circe.literal._
-import org.http4s.{MediaType, Status}
+import org.http4s.{Headers, MediaType, Request, Status}
 import org.http4s.circe._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
@@ -33,6 +33,7 @@ class FirebaseWebClient[F[_]: Async](
     val jsonBody: Json =
       json"""
             {
+             
               "config": {
                 "headers": [{
                   "glob": "**",
@@ -84,11 +85,15 @@ class FirebaseWebClient[F[_]: Async](
   ): F[Unit] =
     for {
       token <- accessToken.map(_.header)
-      req = POST(
-        file,
-        uploadHost / "upload" / "sites" / siteName.value / "versions" / siteVersion.version / "files" / fileHash,
-        token,
-        `Content-Type`(MediaType.application.`octet-stream`)
+      req = Request[F](
+        method = POST,
+        body = file,
+        uri =
+          uploadHost / "upload" / "sites" / siteName.value / "versions" / siteVersion.version / "files" / fileHash,
+        headers = Headers(
+          token,
+          `Content-Type`(MediaType.application.`octet-stream`)
+        )
       )
       res <- client
         .run(req)

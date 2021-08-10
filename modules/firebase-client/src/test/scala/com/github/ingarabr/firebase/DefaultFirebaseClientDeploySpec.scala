@@ -23,13 +23,13 @@ class DefaultFirebaseClientDeploySpec extends AnyFlatSpec with Matchers {
   val clientLogger: Client[IO] => Client[IO] = c =>
     RequestLogger.apply[IO](
       logHeaders = false,
-      logBody = false,
+      logBody = true,
       logAction = Some(str => logger(s">> $str"))
     )(
       ResponseLogger.apply[IO](
         logHeaders = false,
         logBody = true,
-        logAction = Some(str => logger(s">> $str"))
+        logAction = Some(str => logger(s"<< $str"))
       )(c)
     )
 
@@ -40,7 +40,7 @@ class DefaultFirebaseClientDeploySpec extends AnyFlatSpec with Matchers {
         fbClient <- FirebaseClient.resource(httpClient, serviceAccount)
       } yield fbClient
 
-    resources
+    val summary = resources
       .use { client =>
         client
           .upload(
@@ -49,6 +49,9 @@ class DefaultFirebaseClientDeploySpec extends AnyFlatSpec with Matchers {
           )
       }
       .unsafeRunSync()
+
+    withClue("upload request") { summary.filesInUploadRequest shouldBe 2 }
+    withClue("updated") { summary.filesRequiredToUpload should be <= 2 }
   }
 
   private def withKeyPath[A](body: (ServiceAccountKey, SiteName) => A) = {

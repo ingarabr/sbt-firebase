@@ -1,12 +1,15 @@
 package com.github.ingarabr.firebase
 
+import cats.syntax.all._
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import fs2.Stream
+import fs2.compression.Compression
+import fs2.io.file.Files
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.Paths
 
 class DefaultFirebaseClientSpec extends AnyFlatSpec with Matchers {
 
@@ -24,19 +27,43 @@ class DefaultFirebaseClientSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "calculate digest from from file" in {
-    val js = getClass.getResource("/simple-page/app.js").getPath
+    val js = Paths.get(getClass.getResource("/simple-page/app.js").getPath)
 
-    val tempDir = Files.createTempDirectory("test")
-    val digest = DefaultFirebaseClient
-      .zipAndDigest[IO](
-        Paths.get(js),
-        tempDir.resolve("app.js.gz")
-      )
-      .compile
-      .lastOrError
+    val (digest, unzipped, original) = Files[IO]
+      .tempDirectory()
+      .use { tempDir =>
+        val targetPath = tempDir.resolve("app.js.gz")
+
+        val digest = DefaultFirebaseClient
+          .zipAndDigest[IO](js, targetPath)
+          .compile
+          .lastOrError
+
+        val original = Files[IO]
+          .readAll(js, 1024)
+          .through(fs2.text.utf8Decode[IO])
+          .compile
+          .foldMonoid
+        val unzipped =
+          Files[IO]
+            .readAll(targetPath, 1024)
+            .through(Compression[IO].gunzip())
+            .flatMap(_.content)
+            .through(fs2.text.utf8Decode[IO])
+            .compile
+            .foldMonoid
+
+        (digest, unzipped, original).tupled
+
+      }
       .unsafeRunSync()
 
-    digest shouldBe "17bd3fe1380858a5a023d65218738e76f089b4fd9c200a88c1e7d667cc412996"
+    withClue("file content") {
+      unzipped shouldBe original
+    }
+    withClue("digest") {
+      digest shouldBe "216b8dce1d09488078f9ce9144d17b59cc82983c3e0673c203b666b21dfc0b7d"
+    }
 
   }
 

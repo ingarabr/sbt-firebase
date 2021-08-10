@@ -42,6 +42,8 @@ object dto {
 
     def apply(files: List[(Path, Path, String)]): PopulateFilesRequest =
       PopulateFilesRequest(files.map(v => s"/${v._1.toString}" -> v._3).toMap)
+
+    implicit val show: Show[PopulateFilesRequest] = req => coded(req).spaces2
   }
 
   case class PopulateFilesResponse(
