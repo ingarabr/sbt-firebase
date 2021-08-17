@@ -14,7 +14,11 @@ import java.nio.file.{Path, Paths}
 import java.time.Instant
 
 trait FirebaseClient[F[_]] {
-  def upload(siteName: SiteName, path: Path): F[UploadSummary]
+  def upload(
+      siteName: SiteName,
+      path: Path,
+      siteVersionRequest: SiteVersionRequest
+  ): F[UploadSummary]
 }
 
 object FirebaseClient {
@@ -35,7 +39,11 @@ object FirebaseClient {
 class DefaultFirebaseClient[F[_]: Async: Files](
     webClient: FirebaseWebClient[F]
 ) extends FirebaseClient[F] {
-  override def upload(siteName: SiteName, path: Path): F[UploadSummary] = {
+  override def upload(
+      siteName: SiteName,
+      path: Path,
+      siteVersionRequest: SiteVersionRequest
+  ): F[UploadSummary] = {
     val tempDirResource = Files[F].tempDirectory(
       Some(Paths.get(sys.props("java.io.tmpdir"))),
       "fb-upload"
@@ -65,7 +73,7 @@ class DefaultFirebaseClient[F[_]: Async: Files](
         zipWithDigest <- gzipToTempFolderAndCalculateDigests(tempDir)
         populateFilesRequest = PopulateFilesRequest(zipWithDigest)
 
-        siteVersion <- webClient.versionsCreate(siteName)
+        siteVersion <- webClient.versionsCreate(siteName, siteVersionRequest)
         toUpload <- webClient.populateFiles(siteName, siteVersion, populateFilesRequest)
 
         _ <- zipWithDigest

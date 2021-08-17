@@ -3,7 +3,7 @@ package com.github.ingarabr.firebase
 import cats.effect.unsafe.implicits.global
 import cats.effect.IO
 import com.github.ingarabr.firebase.GoogleAccessToken.AuthType.ServiceAccountKey
-import com.github.ingarabr.firebase.dto.SiteName
+import com.github.ingarabr.firebase.dto.{SiteName, SiteVersionRequest}
 import org.http4s.client.Client
 import org.http4s.blaze.client.BlazeClientBuilder
 import org.http4s.client.middleware.RequestLogger
@@ -45,7 +45,8 @@ class DefaultFirebaseClientDeploySpec extends AnyFlatSpec with Matchers {
         client
           .upload(
             firebaseSite,
-            Paths.get(getClass.getResource("/simple-page").getFile)
+            Paths.get(getClass.getResource("/simple-page").getFile),
+            SiteVersionRequest.basic
           )
       }
       .unsafeRunSync()

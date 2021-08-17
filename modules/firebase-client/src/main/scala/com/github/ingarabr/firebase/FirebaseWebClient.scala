@@ -11,7 +11,6 @@ import com.github.ingarabr.firebase.dto._
 import fs2.Stream
 import io.circe.Json
 import io.circe.syntax._
-import io.circe.literal._
 import org.http4s.{Headers, MediaType, Request, Status}
 import org.http4s.circe._
 import org.http4s.client.Client
@@ -29,25 +28,14 @@ class FirebaseWebClient[F[_]: Async](
   private val apiHost = uri"https://firebasehosting.googleapis.com"
   private val uploadHost = uri"https://upload-firebasehosting.googleapis.com"
 
-  def versionsCreate(siteName: SiteName): F[SiteVersion] = {
-    val jsonBody: Json =
-      json"""
-            {
-             
-              "config": {
-                "headers": [{
-                  "glob": "**",
-                  "headers": {
-                    "Cache-Control": "max-age=1800"
-                  }
-                }]
-              } 
-            }
-            """
-
+  def versionsCreate(siteName: SiteName, siteVersionRequest: SiteVersionRequest): F[SiteVersion] = {
     for {
       token <- accessToken.map(_.header)
-      req = POST(jsonBody, apiHost / "v1beta1" / "sites" / siteName.value / "versions", token)
+      req = POST(
+        siteVersionRequest.asJson,
+        apiHost / "v1beta1" / "sites" / siteName.value / "versions",
+        token
+      )
       res <- client.run(req).use(_.asJsonDecode[SiteVersion])
     } yield res
   }.adaptError { case t =>

@@ -5,6 +5,7 @@ import cats.syntax.show._
 import cats.effect.unsafe.implicits.global
 import cats.syntax.flatMap._
 import com.github.ingarabr.firebase.GoogleAccessToken.AuthType
+import com.github.ingarabr.firebase.dto.SiteVersionRequest
 import org.http4s.blaze.client.BlazeClientBuilder
 import sbt.Keys.streams
 import sbt.{Def, _}
@@ -15,6 +16,11 @@ object FirebaseHostingPlugin extends AutoPlugin {
 
   object autoImport {
     val firebaseSiteName = taskKey[String]("The some of the firebase project/site.")
+    val firebaseVersionConfig = taskKey[SiteVersionRequest](
+      """The firebase site version configuration.
+        |For details see https://firebase.google.com/docs/reference/hosting/rest/v1beta1/sites.versions
+        |""".stripMargin
+    )
     val firebaseHostingFolder = taskKey[File]("The location of the hosting files.")
     val firebaseAuth =
       taskKey[AuthType]("How to authenticate with firebase. Using google library defaults")
@@ -27,11 +33,13 @@ object FirebaseHostingPlugin extends AutoPlugin {
   override def projectSettings: Seq[Def.Setting[_]] =
     Seq(
       firebaseAuth := AuthType.ApplicationDefault,
+      firebaseVersionConfig := SiteVersionRequest.basic,
       firebaseDeployHosting := {
         val dir = firebaseHostingFolder.value
         val name = firebaseSiteName.value
         val auth = firebaseAuth.value
         val log = streams.value.log
+        val cfg = firebaseVersionConfig.value
 
         log.info(
           show"""|Firebase deploy:
@@ -42,7 +50,7 @@ object FirebaseHostingPlugin extends AutoPlugin {
         )
 
         firebaseClientResource(auth)
-          .use(c => c.upload(dto.SiteName(name), dir.toPath))
+          .use(c => c.upload(dto.SiteName(name), dir.toPath, cfg))
           .flatTap(summary =>
             IO(
               log.info(

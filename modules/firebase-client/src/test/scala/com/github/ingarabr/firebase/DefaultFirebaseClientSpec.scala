@@ -62,7 +62,7 @@ class DefaultFirebaseClientSpec extends AnyFlatSpec with Matchers {
       unzipped shouldBe original
     }
     withClue("digest") {
-      digest shouldBe "216b8dce1d09488078f9ce9144d17b59cc82983c3e0673c203b666b21dfc0b7d"
+      digest shouldBe "1d5309c24169cbab617a80197e0bc72a71fb3f0f7a9c7c3bdc392c3ad951682d"
     }
 
   }
