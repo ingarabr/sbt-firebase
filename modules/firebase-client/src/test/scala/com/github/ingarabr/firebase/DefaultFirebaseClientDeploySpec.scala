@@ -4,10 +4,7 @@ import cats.effect.unsafe.implicits.global
 import cats.effect.IO
 import com.github.ingarabr.firebase.GoogleAccessToken.AuthType.ServiceAccountKey
 import com.github.ingarabr.firebase.dto.{SiteName, SiteVersionRequest}
-import org.http4s.client.Client
 import org.http4s.blaze.client.BlazeClientBuilder
-import org.http4s.client.middleware.RequestLogger
-import org.http4s.client.middleware.ResponseLogger
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -18,25 +15,11 @@ import scala.concurrent.ExecutionContext
 
 class DefaultFirebaseClientDeploySpec extends AnyFlatSpec with Matchers {
 
-  private def logger = (str: String) => IO(println(str))
-
-  val clientLogger: Client[IO] => Client[IO] = c =>
-    RequestLogger.apply[IO](
-      logHeaders = false,
-      logBody = true,
-      logAction = Some(str => logger(s">> $str"))
-    )(
-      ResponseLogger.apply[IO](
-        logHeaders = false,
-        logBody = true,
-        logAction = Some(str => logger(s"<< $str"))
-      )(c)
-    )
-
   it should "deploy to firebase" in withKeyPath { case (serviceAccount, firebaseSite) =>
     val resources =
       for {
-        httpClient <- BlazeClientBuilder[IO](ExecutionContext.global).resource.map(clientLogger)
+        httpClient <- BlazeClientBuilder[IO](ExecutionContext.global).resource
+//          .map(Http4sConsoleLogger.apply[IO](_))
         fbClient <- FirebaseClient.resource(httpClient, serviceAccount)
       } yield fbClient
 
