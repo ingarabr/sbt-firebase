@@ -12,13 +12,14 @@ import java.io.{File, FileInputStream}
 import java.nio.file.Paths
 import java.util.Properties
 import scala.concurrent.ExecutionContext
+import fs2.io.file.Path
 
 class DefaultFirebaseClientDeploySpec extends AnyFlatSpec with Matchers {
 
   it should "deploy to firebase" in withKeyPath { case (serviceAccount, firebaseSite) =>
     val resources =
       for {
-        httpClient <- BlazeClientBuilder[IO](ExecutionContext.global).resource
+        httpClient <- BlazeClientBuilder[IO].withExecutionContext(ExecutionContext.global).resource
 //          .map(Http4sConsoleLogger.apply[IO](_))
         fbClient <- FirebaseClient.resource(httpClient, serviceAccount)
       } yield fbClient
@@ -28,7 +29,7 @@ class DefaultFirebaseClientDeploySpec extends AnyFlatSpec with Matchers {
         client
           .upload(
             firebaseSite,
-            Paths.get(getClass.getResource("/simple-page").getFile),
+            Path.fromNioPath(Paths.get(getClass.getResource("/simple-page").getFile)),
             SiteVersionRequest.basic
           )
       }

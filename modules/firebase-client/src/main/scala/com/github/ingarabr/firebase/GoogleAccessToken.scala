@@ -2,7 +2,7 @@ package com.github.ingarabr.firebase
 
 import cats.Show
 import cats.effect.Ref
-import cats.effect.{Clock, Resource, Sync}
+import cats.effect.{Resource, Sync}
 import cats.syntax.applicative._
 import cats.syntax.flatMap._
 import cats.syntax.show._
@@ -35,7 +35,7 @@ object GoogleAccessToken {
       scopedGoogleCredential.getAccessToken
     }
 
-  def cached[F[_]: Sync: Clock](authType: AuthType): Resource[F, F[AccessToken]] = {
+  def cached[F[_]: Sync](authType: AuthType): Resource[F, F[AccessToken]] = {
     Resource
       .make(getAccessToken[F](authType).flatMap(Ref[F].of))(_ => Sync[F].unit)
       .map(ref =>

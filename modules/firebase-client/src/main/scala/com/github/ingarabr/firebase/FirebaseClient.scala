@@ -1,7 +1,7 @@
 package com.github.ingarabr.firebase
 
 import cats.syntax.all._
-import cats.effect.{Async, Clock, Resource}
+import cats.effect.{Async, Resource}
 import com.github.ingarabr.firebase.DefaultFirebaseClient.UploadSummary
 import com.github.ingarabr.firebase.GoogleAccessToken.AuthType
 import com.github.ingarabr.firebase.dto._
@@ -10,7 +10,8 @@ import fs2.Stream
 import fs2.compression.Compression
 import org.http4s.client.Client
 
-import java.nio.file.{Path, Paths}
+import java.nio.file.Paths
+import fs2.io.file.Path
 
 trait FirebaseClient[F[_]] {
   def upload(
@@ -21,7 +22,7 @@ trait FirebaseClient[F[_]] {
 }
 
 object FirebaseClient {
-  def resource[F[_]: Async: Clock](
+  def resource[F[_]: Async](
       client: Client[F],
       authType: AuthType
   ): Resource[F, FirebaseClient[F]] = {
@@ -50,19 +51,20 @@ class DefaultFirebaseClient[F[_]: Async: Files](
       siteVersionRequest: SiteVersionRequest
   ): F[UploadSummary] = {
     val tempDirResource = Files[F].tempDirectory(
-      Some(Paths.get(sys.props("java.io.tmpdir"))),
-      "fb-upload"
+      dir = Some(Paths.get(sys.props("java.io.tmpdir"))).map(Path.fromNioPath),
+      prefix = "fb-upload",
+      permissions = None
     )
 
     def gzipToTempFolderAndCalculateDigests(tempDir: Path): F[List[(Path, Path, String)]] =
       Files[F]
         .walk(path)
         .adaptError { case t => new Exception(show"Failed to walk $path", t) }
-        .filter(p => p.toFile.isFile)
+        .filter(p => p.toNioPath.toFile.isFile)
         .map(source => {
           val relative = path.relativize(source)
           val target =
-            tempDir.resolve(relative.resolveSibling(relative.getFileName.toString ++ ".gz"))
+            tempDir.resolve(relative.resolveSibling(relative.fileName.toString ++ ".gz"))
           (source, relative, target)
         })
         .flatMap { case (source, relative, target) =>
@@ -95,7 +97,7 @@ class DefaultFirebaseClient[F[_]: Async: Files](
                 siteName,
                 siteVersion,
                 hashValue,
-                Files[F].readAll(target, 1024)
+                Files[F].readAll(target)
               )
               .adaptErrorMsg(s"Failed to upload file $source with sha $hashValue from $target")
           }
@@ -124,19 +126,20 @@ object DefaultFirebaseClient {
       target: Path
   ): fs2.Stream[F, String] = {
     val gzipped = Files[F]
-      .readAll(source, 1024)
+      .readAll(source)
       .through(
         Compression[F].gzip(
-          fileName = Some(source.getFileName.toString),
+          fileName = Some(source.fileName.toString),
           modificationTime = None
         )
       )
 
     val folder = Stream.eval(
       Async[F]
-        .blocking { if (target.getParent.toFile.isDirectory) false else true }
+        .blocking { if (target.parent.forall(_.toNioPath.toFile.isDirectory)) false else true }
         .flatMap {
-          case true  => Files[F].createDirectories(target.getParent).void
+          case true =>
+            target.parent.fold(Async[F].unit)((par: Path) => Files[F].createDirectories(par).void)
           case false => Async[F].unit
         }
     )

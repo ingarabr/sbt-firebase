@@ -16,6 +16,7 @@ lazy val `sbt-firebase-root` = (project in file("."))
 lazy val `firebase-client` = (project in file("modules/firebase-client"))
   .settings(
     crossScalaVersions := V.scala.Cross,
+    scalacOptions -= "-Ywarn-unused:params", //
     libraryDependencies ++= Seq(
       "org.http4s" %% "http4s-dsl" % V.Http4s,
       "org.http4s" %% "http4s-blaze-client" % V.Http4s,

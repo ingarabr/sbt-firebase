@@ -26,15 +26,13 @@ class DefaultFirebaseClientSpec extends AnyFlatSpec with Matchers {
 
   it should "calculate digest from tmp file" in {
     val setup = for {
-      temporaryTargetLocation <- Files[IO].tempDirectory()
-      sourceFile <- Files[IO].tempDirectory().flatMap { p =>
+      temporaryTargetLocation <- Files[IO].tempDirectory
+      sourceFile <- Files[IO].tempDirectory.flatMap { p =>
         val filePath = p.resolve("app.js")
         Resource.eval(
           Stream
             .iterable(
-              "sdfijo34thpgsndpew[0iu4htofewaiep;fhl;0psa'ofpko4pj39hwtgafeo;jf"
-                .repeat(100)
-                .getBytes()
+              ("sdfijo34thpgsndpew[0iu4htofewaiep;fhl;0psa'ofpko4pj39hwtgafeo;jf" * 100).getBytes()
             )
             .through(Files[IO].writeAll(filePath))
             .compile

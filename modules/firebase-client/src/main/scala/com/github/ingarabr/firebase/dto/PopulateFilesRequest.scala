@@ -4,7 +4,7 @@ import cats.Show
 import io.circe.Codec
 import io.circe.generic.semiauto.deriveCodec
 
-import java.nio.file.Path
+import fs2.io.file.Path
 
 case class PopulateFilesRequest(
     files: Map[String, String]

@@ -12,7 +12,7 @@ import java.nio.file.Path
 package object firebase {
 
   implicit class TokenExtra(token: AccessToken) {
-    def hasExpired[F[_]: Sync: Clock]: F[Boolean] =
+    def hasExpired[F[_]: Sync]: F[Boolean] =
       Clock[F].realTime.map(_.toMillis >= token.getExpirationTime.getTime)
 
     def header: Authorization =
