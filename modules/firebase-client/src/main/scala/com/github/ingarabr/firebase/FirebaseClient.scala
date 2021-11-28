@@ -1,6 +1,6 @@
 package com.github.ingarabr.firebase
 
-import cats.implicits._
+import cats.syntax.all._
 import cats.effect.{Async, Clock, Resource}
 import com.github.ingarabr.firebase.DefaultFirebaseClient.UploadSummary
 import com.github.ingarabr.firebase.GoogleAccessToken.AuthType
@@ -39,6 +39,12 @@ object FirebaseClient {
 class DefaultFirebaseClient[F[_]: Async: Files](
     webClient: FirebaseWebClient[F]
 ) extends FirebaseClient[F] {
+
+  implicit class ErrorMsgOnStep[A](f: F[A]) {
+    def adaptErrorMsg(msg: => String): F[A] =
+      f.adaptError { case t => new Exception(msg, t) }
+  }
+
   override def upload(
       siteName: SiteName,
       path: Path,
@@ -52,6 +58,7 @@ class DefaultFirebaseClient[F[_]: Async: Files](
     def gzipToTempFolderAndCalculateDigests(tempDir: Path): F[List[(Path, Path, String)]] =
       Files[F]
         .walk(path)
+        .adaptError { case t => new Exception(show"Failed to walk $path", t) }
         .filter(p => p.toFile.isFile)
         .map(source => {
           val relative = path.relativize(source)
@@ -71,10 +78,15 @@ class DefaultFirebaseClient[F[_]: Async: Files](
     tempDirResource.use(tempDir =>
       for {
         zipWithDigest <- gzipToTempFolderAndCalculateDigests(tempDir)
+          .adaptErrorMsg(show"Failed during Gzip and calculating file digest step $tempDir")
         populateFilesRequest = PopulateFilesRequest(zipWithDigest)
 
-        siteVersion <- webClient.versionsCreate(siteName, siteVersionRequest)
-        toUpload <- webClient.populateFiles(siteName, siteVersion, populateFilesRequest)
+        siteVersion <- webClient
+          .versionsCreate(siteName, siteVersionRequest)
+          .adaptErrorMsg("Failed to create firebase version")
+        toUpload <- webClient
+          .populateFiles(siteName, siteVersion, populateFilesRequest)
+          .adaptErrorMsg("Failed to upload files")
 
         _ <- zipWithDigest
           .filter { case (_, _, digest) => toUpload.contains(digest) }
@@ -86,13 +98,13 @@ class DefaultFirebaseClient[F[_]: Async: Files](
                 hashValue,
                 Files[F].readAll(target, 1024)
               )
-              .adaptError { case t =>
-                new Exception(s"Failed to upload file $source with sha $hashValue from $target", t)
-              }
+              .adaptErrorMsg(s"Failed to upload file $source with sha $hashValue from $target")
           }
 
-        _ <- webClient.uploadingDone(siteName, siteVersion)
-        _ <- webClient.release(siteName, siteVersion)
+        _ <- webClient
+          .uploadingDone(siteName, siteVersion)
+          .adaptErrorMsg("Failed on marking upload done")
+        _ <- webClient.release(siteName, siteVersion).adaptErrorMsg("Failed on releasing")
 
       } yield UploadSummary(populateFilesRequest.files.size, toUpload.size)
     )
@@ -121,8 +133,17 @@ object DefaultFirebaseClient {
         )
       )
 
-    gzipped.through(s => Files[F].writeAll(target)(s) ++ Stream.eval(digestHexStr(s)))
+    val folder = Stream.eval(
+      Async[F]
+        .blocking { if (target.getParent.toFile.isDirectory) false else true }
+        .flatMap {
+          case true  => Files[F].createDirectories(target.getParent).void
+          case false => Async[F].unit
+        }
+    )
 
+    folder >> gzipped
+      .through(s => Files[F].writeAll(target)(s) ++ Stream.eval(digestHexStr(s)))
   }
 
   case class UploadSummary(
