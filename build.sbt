@@ -3,7 +3,17 @@ import Versions.V
 inThisBuild(
   Seq(
     scalaVersion := V.scala.Default,
-    organization := "com.github.ingarabr"
+    organization := "com.github.ingarabr",
+    homepage := Some(url("https://github.com/ingarabr/sbt-firebase")),
+    licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
+    developers := List(
+      Developer(
+        "ingarabr",
+        "Ingar Abrahamsen",
+        "ingar.abrahamasen@gmail.com",
+        url("https://github.com/ingarabr/")
+      )
+    )
   )
 )
 
