@@ -11,7 +11,6 @@ import fs2.compression.Compression
 import org.http4s.client.Client
 
 import java.nio.file.{Path, Paths}
-import java.time.Instant
 
 trait FirebaseClient[F[_]] {
   def upload(
@@ -129,7 +128,7 @@ object DefaultFirebaseClient {
       .through(
         Compression[F].gzip(
           fileName = Some(source.getFileName.toString),
-          modificationTime = Some(Instant.ofEpochMilli(source.toFile.lastModified()))
+          modificationTime = None
         )
       )
 

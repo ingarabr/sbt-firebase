@@ -2,14 +2,12 @@ package com.github.ingarabr.firebase
 
 import cats.syntax.all._
 import cats.effect.IO
+import cats.effect.kernel.Resource
 import cats.effect.unsafe.implicits.global
 import fs2.Stream
-import fs2.compression.Compression
 import fs2.io.file.Files
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-
-import java.nio.file.Paths
 
 class DefaultFirebaseClientSpec extends AnyFlatSpec with Matchers {
 
@@ -26,43 +24,51 @@ class DefaultFirebaseClientSpec extends AnyFlatSpec with Matchers {
     }
   }
 
-  it should "calculate digest from from file" in {
-    val js = Paths.get(getClass.getResource("/simple-page/app.js").getPath)
+  it should "calculate digest from tmp file" in {
+    val setup = for {
+      temporaryTargetLocation <- Files[IO].tempDirectory()
+      sourceFile <- Files[IO].tempDirectory().flatMap { p =>
+        val filePath = p.resolve("app.js")
+        Resource.eval(
+          Stream
+            .iterable(
+              "sdfijo34thpgsndpew[0iu4htofewaiep;fhl;0psa'ofpko4pj39hwtgafeo;jf"
+                .repeat(100)
+                .getBytes()
+            )
+            .through(Files[IO].writeAll(filePath))
+            .compile
+            .drain
+            .as(filePath)
+        )
 
-    val (digest, unzipped, original) = Files[IO]
-      .tempDirectory()
-      .use { tempDir =>
-        val targetPath = tempDir.resolve("app.js.gz")
+      }
+    } yield (temporaryTargetLocation, sourceFile)
+    val (digest, expectedDigest) = setup
+      .use { case (tempTarget, sourceFile) =>
+        val zippedFile = tempTarget.resolve("app.js.gz")
 
         val digest = DefaultFirebaseClient
-          .zipAndDigest[IO](js, targetPath)
+          .zipAndDigest[IO](sourceFile, zippedFile)
           .compile
           .lastOrError
 
-        val original = Files[IO]
-          .readAll(js, 1024)
-          .through(fs2.text.utf8Decode[IO])
-          .compile
-          .foldMonoid
-        val unzipped =
-          Files[IO]
-            .readAll(targetPath, 1024)
-            .through(Compression[IO].gunzip())
-            .flatMap(_.content)
-            .through(fs2.text.utf8Decode[IO])
-            .compile
-            .foldMonoid
+        val expectedDigest =
+          IO {
+            val digestCmd = List("openssl", "dgst", "-sha256", zippedFile.toString)
+            sys.process.Process(digestCmd).!!
+          }.map(_.trim().replaceAll("SHA256\\(.*\\)= ", ""))
 
-        (digest, unzipped, original).tupled
-
+        (digest, expectedDigest).tupled
       }
       .unsafeRunSync()
 
-    withClue("file content") {
-      unzipped shouldBe original
+    withClue("expected digest") {
+      digest shouldBe expectedDigest
     }
     withClue("digest") {
-      digest shouldBe "1d5309c24169cbab617a80197e0bc72a71fb3f0f7a9c7c3bdc392c3ad951682d"
+      // the digest should be stable
+      digest shouldBe "5afdb27ba7a9dcb26a1438f02919b2c92c11ee395ef441bb486ddd13daa499ec"
     }
 
   }
