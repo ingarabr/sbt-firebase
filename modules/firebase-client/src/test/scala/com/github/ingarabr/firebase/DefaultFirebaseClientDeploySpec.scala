@@ -4,23 +4,24 @@ import cats.effect.unsafe.implicits.global
 import cats.effect.IO
 import com.github.ingarabr.firebase.GoogleAccessToken.AuthType.ServiceAccountKey
 import com.github.ingarabr.firebase.dto.{SiteName, SiteVersionRequest}
-import org.http4s.blaze.client.BlazeClientBuilder
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
 import java.io.{File, FileInputStream}
 import java.nio.file.Paths
 import java.util.Properties
-import scala.concurrent.ExecutionContext
 import fs2.io.file.Path
+import org.http4s.ember.client.EmberClientBuilder
 
 class DefaultFirebaseClientDeploySpec extends AnyFlatSpec with Matchers {
 
   it should "deploy to firebase" in withKeyPath { case (serviceAccount, firebaseSite) =>
     val resources =
       for {
-        httpClient <- BlazeClientBuilder[IO].withExecutionContext(ExecutionContext.global).resource
-//          .map(Http4sConsoleLogger.apply[IO](_))
+        httpClient <-
+          EmberClientBuilder
+            .default[IO]
+            .build
         fbClient <- FirebaseClient.resource(httpClient, serviceAccount)
       } yield fbClient
 
@@ -35,8 +36,8 @@ class DefaultFirebaseClientDeploySpec extends AnyFlatSpec with Matchers {
       }
       .unsafeRunSync()
 
-    withClue("upload request") { summary.filesInUploadRequest shouldBe 2 }
-    withClue("updated") { summary.filesRequiredToUpload should be <= 2 }
+    withClue("upload request") { summary.filesInUploadRequest shouldBe 3 }
+    withClue("updated") { summary.filesRequiredToUpload should be <= 3 }
   }
 
   private def withKeyPath[A](body: (ServiceAccountKey, SiteName) => A) = {

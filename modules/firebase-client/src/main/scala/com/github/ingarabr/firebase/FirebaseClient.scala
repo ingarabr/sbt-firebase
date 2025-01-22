@@ -13,6 +13,8 @@ import org.http4s.client.Client
 import java.nio.file.Paths
 import fs2.io.file.Path
 
+import scala.annotation.nowarn
+
 trait FirebaseClient[F[_]] {
   def upload(
       siteName: SiteName,
@@ -59,7 +61,6 @@ class DefaultFirebaseClient[F[_]: Async: Files](
     def gzipToTempFolderAndCalculateDigests(tempDir: Path): F[List[(Path, Path, String)]] =
       Files[F]
         .walk(path)
-        .adaptError { case t => new Exception(show"Failed to walk $path", t) }
         .filter(p => p.toNioPath.toFile.isFile)
         .map(source => {
           val relative = path.relativize(source)
@@ -92,14 +93,25 @@ class DefaultFirebaseClient[F[_]: Async: Files](
         _ <- zipWithDigest
           .filter { case (_, _, digest) => toUpload.contains(digest) }
           .traverse { case (source, target, hashValue) =>
-            webClient
-              .upload(
-                siteName,
-                siteVersion,
-                hashValue,
-                Files[F].readAll(target)
+            Files[F]
+              .exists(target)
+              .flatMap {
+                case true  => Files[F].size(target).map(Option(_))
+                case false => Async[F].pure(Option.empty[Long])
+              }
+              .flatMap(size =>
+                webClient
+                  .upload(
+                    siteName,
+                    siteVersion,
+                    hashValue,
+                    Files[F].readAll(target)
+                  )
+                  .adaptErrorMsg(
+                    s"Failed to upload file $source with sha $hashValue from $target ${size
+                      .fold("is missing")(s => s"size $s")}"
+                  )
               )
-              .adaptErrorMsg(s"Failed to upload file $source with sha $hashValue from $target")
           }
 
         _ <- webClient
@@ -115,11 +127,14 @@ class DefaultFirebaseClient[F[_]: Async: Files](
 
 object DefaultFirebaseClient {
 
-  def digestHexStr[F[_]: Async](s: fs2.Stream[F, Byte]): F[String] =
+  @nowarn
+  def digestHexStr[F[_]: Async](s: fs2.Stream[F, Byte]): F[String] = {
+//    s.through(fs2.hashing.Hashing[F].hash(HashAlgorithm.SHA256)).map(b => b.toString())
     s.through(fs2.hash.sha256)
       .map(b => String.format("%02x", Byte.box(b)))
       .compile
       .foldMonoid
+  }
 
   def zipAndDigest[F[_]: Async: Compression: Files](
       source: Path,

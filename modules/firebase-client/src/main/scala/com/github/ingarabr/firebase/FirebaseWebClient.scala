@@ -16,7 +16,7 @@ import org.http4s.circe._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.dsl.Http4sDsl
-import org.http4s.implicits.http4sLiteralsSyntax
+import org.http4s.implicits._
 import org.http4s.headers.`Content-Type`
 
 class FirebaseWebClient[F[_]: Async](

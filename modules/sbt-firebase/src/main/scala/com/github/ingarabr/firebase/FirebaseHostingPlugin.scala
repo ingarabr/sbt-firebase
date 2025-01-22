@@ -5,7 +5,7 @@ import cats.syntax.show._
 import cats.effect.unsafe.implicits.global
 import com.github.ingarabr.firebase.GoogleAccessToken.AuthType
 import com.github.ingarabr.firebase.dto.SiteVersionRequest
-import org.http4s.blaze.client.BlazeClientBuilder
+import org.http4s.ember.client.EmberClientBuilder
 import sbt.Keys.streams
 import sbt.{Def, _}
 import fs2.io.file.{Path => Fs2Path}
@@ -68,7 +68,10 @@ object FirebaseHostingPlugin extends AutoPlugin {
 
   private def firebaseClientResource(auth: AuthType) = {
     for {
-      http4sClient <- BlazeClientBuilder[IO].withExecutionContext(ExecutionContext.global).resource
+      http4sClient <-
+        EmberClientBuilder
+          .default[IO]
+          .build
       firebaseClient <- FirebaseClient.resource[IO](http4sClient, auth)
     } yield firebaseClient
   }
