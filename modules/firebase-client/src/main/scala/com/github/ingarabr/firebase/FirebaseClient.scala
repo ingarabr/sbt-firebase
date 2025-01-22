@@ -8,6 +8,7 @@ import com.github.ingarabr.firebase.dto._
 import fs2.io.file.Files
 import fs2.Stream
 import fs2.compression.Compression
+import fs2.hashing.{HashAlgorithm, Hashing}
 import org.http4s.client.Client
 
 import java.nio.file.Paths
@@ -24,7 +25,7 @@ trait FirebaseClient[F[_]] {
 }
 
 object FirebaseClient {
-  def resource[F[_]: Async](
+  def resource[F[_]: Async: Hashing](
       client: Client[F],
       authType: AuthType
   ): Resource[F, FirebaseClient[F]] = {
@@ -38,7 +39,7 @@ object FirebaseClient {
 /** The steps are documented in
   * https://firebase.google.com/docs/hosting/api-deploy
   */
-class DefaultFirebaseClient[F[_]: Async: Files](
+class DefaultFirebaseClient[F[_]: Async: Files: Hashing](
     webClient: FirebaseWebClient[F]
 ) extends FirebaseClient[F] {
 
@@ -127,16 +128,16 @@ class DefaultFirebaseClient[F[_]: Async: Files](
 
 object DefaultFirebaseClient {
 
-  @nowarn
-  def digestHexStr[F[_]: Async](s: fs2.Stream[F, Byte]): F[String] = {
-//    s.through(fs2.hashing.Hashing[F].hash(HashAlgorithm.SHA256)).map(b => b.toString())
-    s.through(fs2.hash.sha256)
-      .map(b => String.format("%02x", Byte.box(b)))
+  def digestHexStr[F[_]: Async: Hashing](s: fs2.Stream[F, Byte]): F[String] = {
+    s.through(Hashing[F].hash(HashAlgorithm.SHA256))
+      .map(b => b.toString())
+//    s.through(fs2.hash.sha256)
+//      .map(b => String.format("%02x", Byte.box(b)))
       .compile
       .foldMonoid
   }
 
-  def zipAndDigest[F[_]: Async: Compression: Files](
+  def zipAndDigest[F[_]: Async: Compression: Files: Hashing](
       source: Path,
       target: Path
   ): fs2.Stream[F, String] = {
