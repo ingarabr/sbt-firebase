@@ -13,8 +13,7 @@ inThisBuild(
         "ingar.abrahamasen@gmail.com",
         url("https://github.com/ingarabr/")
       )
-    ),
-    githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17"))
+    )
   )
 )
 
