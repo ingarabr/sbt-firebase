@@ -14,7 +14,7 @@ inThisBuild(
         url("https://github.com/ingarabr/")
       )
     ),
-    githubWorkflowJavaVersions += JavaSpec.temurin("17")
+    githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17"))
   )
 )
 
