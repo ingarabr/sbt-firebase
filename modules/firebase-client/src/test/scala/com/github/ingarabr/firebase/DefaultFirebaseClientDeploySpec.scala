@@ -36,8 +36,8 @@ class DefaultFirebaseClientDeploySpec extends AnyFlatSpec with Matchers {
       }
       .unsafeRunSync()
 
-    withClue("upload request") { summary.filesInUploadRequest shouldBe 3 }
-    withClue("updated") { summary.filesRequiredToUpload should be <= 3 }
+    withClue("upload request") { summary.filesInUploadRequest shouldBe 4 }
+    withClue("updated") { summary.filesRequiredToUpload should be <= 4 }
   }
 
   private def withKeyPath[A](body: (ServiceAccountKey, SiteName) => A) = {

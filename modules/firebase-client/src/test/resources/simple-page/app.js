@@ -1,5 +1,5 @@
 function runApp() {
-    console.log("Hi")
+    console.log("Hi there")
     document.getElementById("app").innerHTML=Date();
 }
 

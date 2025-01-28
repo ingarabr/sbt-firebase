@@ -14,8 +14,6 @@ import org.http4s.client.Client
 import java.nio.file.Paths
 import fs2.io.file.Path
 
-import scala.annotation.nowarn
-
 trait FirebaseClient[F[_]] {
   def upload(
       siteName: SiteName,
@@ -27,12 +25,12 @@ trait FirebaseClient[F[_]] {
 object FirebaseClient {
   def resource[F[_]: Async: Hashing](
       client: Client[F],
-      authType: AuthType
+      authType: AuthType,
+      parUploads: Int = 4
   ): Resource[F, FirebaseClient[F]] = {
     GoogleAccessToken
       .cached(authType)
-      .map(auth => new DefaultFirebaseClient[F](new FirebaseWebClient[F](client, auth)))
-
+      .map(auth => new DefaultFirebaseClient[F](new FirebaseWebClient[F](client, auth), parUploads))
   }
 }
 
@@ -40,7 +38,8 @@ object FirebaseClient {
   * https://firebase.google.com/docs/hosting/api-deploy
   */
 class DefaultFirebaseClient[F[_]: Async: Files: Hashing](
-    webClient: FirebaseWebClient[F]
+    webClient: FirebaseWebClient[F],
+    parUploads: Int
 ) extends FirebaseClient[F] {
 
   implicit class ErrorMsgOnStep[A](f: F[A]) {
@@ -91,9 +90,11 @@ class DefaultFirebaseClient[F[_]: Async: Files: Hashing](
           .populateFiles(siteName, siteVersion, populateFilesRequest)
           .adaptErrorMsg("Failed to upload files")
 
-        _ <- zipWithDigest
+        _ <- Stream
+          .emits(zipWithDigest)
+          .covary[F]
           .filter { case (_, _, digest) => toUpload.contains(digest) }
-          .traverse { case (source, target, hashValue) =>
+          .parEvalMap(parUploads) { case (source, target, hashValue) =>
             Files[F]
               .exists(target)
               .flatMap {
@@ -114,6 +115,8 @@ class DefaultFirebaseClient[F[_]: Async: Files: Hashing](
                   )
               )
           }
+          .compile
+          .drain
 
         _ <- webClient
           .uploadingDone(siteName, siteVersion)
